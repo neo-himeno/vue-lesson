@@ -2,17 +2,24 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 
 // タイピングデータ
-const completedText = ref('')
+const text = ref('')
+const completedSubText = ref('')
 const remainingText = ref('')
 const completedRoman = ref('')
 const remainingRoman = ref('')
 
 // お題リスト
 const topics = [
-  'わたしは「こんにちは」といった。',
-  'Vue.jsはとてもべんりです。',
-  'プログラミングはたのしい。',
-  'タイピングゲームをつくろう！',
+  { text: '今日の天気は晴れ。', subText: 'きょうのてんきははれ。' },
+  { text: 'サッカーのワールドカップ。', subText: 'サッカーのワールドカップ。' },
+  { text: 'オリンピックが楽しみ。', subText: 'オリンピックがたのしみ。' },
+  { text: '映画の新作が公表。', subText: 'えいがのしんさくがこうひょう。' },
+  { text: '今日のニュースを見た？', subText: 'きょうのニュースをみた？' },
+  { text: '消費税が上がるらしい。', subText: 'しょうひぜいがあがるらしい。' },
+  { text: '電車が遅れている。', subText: 'でんしゃがおくれている。' },
+  { text: '金メダルを目指そう！', subText: 'きんメダルをめざそう！' },
+  { text: '海外旅行が復活。', subText: 'かいがいりょこうがふっかつ。' },
+  { text: '新型スマホが発売。', subText: 'しんがたスマホがはつばい。' },
 ]
 const currentTopicIndex = ref(0) // 現在のお題のインデックス
 
@@ -24,7 +31,7 @@ let typingText = null
 
 // 初期化処理
 function initializeTypingText() {
-  const topic = topics[currentTopicIndex.value]
+  const topic = topics[currentTopicIndex.value].subText
   typingText = new window.TypingText(topic)
 
   // 初期状態を反映
@@ -69,7 +76,8 @@ function playKeyTypeSound() {
 
 // テキストデータを更新
 function updateTextData() {
-  completedText.value = typingText.completedText
+  text.value = topics[currentTopicIndex.value].text
+  completedSubText.value = typingText.completedText
   remainingText.value = typingText.remainingText
   completedRoman.value = typingText.completedRoman
   remainingRoman.value = typingText.remainingRoman
@@ -88,43 +96,35 @@ onUnmounted(() => {
 
 <template>
   <div class="typing-container">
-    <h1>タイピングゲーム</h1>
     <div class="progress-bar">
       <div
         class="progress"
         :style="{
-          width: `${(completedText.length / (completedText.length + remainingText.length)) * 100}%`,
+          width: `${(completedSubText.length / (completedSubText.length + remainingText.length)) * 100}%`,
         }"
       ></div>
     </div>
-    <div class="text-display">
-      <span class="completed">{{ completedText }}</span>
+    <div class="text-display">{{ text }}</div>
+    <!-- <div class="sub-text-display">
+      <span class="completed">{{ completedSubText }}</span>
       <span class="remaining">{{ remainingText }}</span>
-    </div>
+    </div> -->
     <div class="roman-display">
       <span class="completed-roman">{{ completedRoman }}</span>
       <span class="remaining-roman">{{ remainingRoman }}</span>
     </div>
-    <p class="instructions">画面上でキーを入力してください。</p>
   </div>
 </template>
 
 <style scoped>
 .typing-container {
-  font-family: 'Arial', sans-serif;
   text-align: center;
-  margin: 20px auto;
-  max-width: 600px;
+  height: fit-content;
+  min-width: 500px;
   padding: 20px;
   background-color: #f9f9f9;
   border-radius: 10px;
   box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-}
-
-h1 {
-  font-size: 2rem;
-  margin-bottom: 20px;
-  color: #333;
 }
 
 .progress-bar {
@@ -143,7 +143,13 @@ h1 {
 }
 
 .text-display {
-  font-size: 1.5rem;
+  font-size: 1.8rem;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.sub-text-display {
+  font-size: 1.4rem;
   margin-bottom: 10px;
   color: #333;
 }
@@ -168,11 +174,5 @@ h1 {
 
 .remaining-roman {
   color: #999;
-}
-
-.instructions {
-  font-size: 1rem;
-  color: #555;
-  margin-top: 20px;
 }
 </style>
