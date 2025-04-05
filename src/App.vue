@@ -25,7 +25,7 @@ const topics = [
 const currentTopicIndex = ref(0) // 現在のお題のインデックス
 
 // キータイプ音の準備
-const keyTypeSound = new Audio('@assets/sound/type2.mp3')
+const keyTypeSound = new Audio('/assets/sound/type2.mp3')
 
 // TypingTextインスタンス
 let typingText = null
@@ -158,10 +158,15 @@ function initializePhysics() {
 
 // 文字を物理演算で落下させる
 function addFallingLetter(letter) {
+  letter = letter === '?' ? 'hatena' : letter
+  const imgPath = `/assets/images/${letter}.png`
   const letterBody = Matter.Bodies.circle(Math.random() * window.innerWidth, 0, 20, {
-    restitution: 1, // 弾む効果
     render: {
-      fillStyle: '#333',
+      sprite: {
+        texture: imgPath,
+        xScale: 0.3,
+        yScale: 0.3,
+      },
     },
   })
 
@@ -190,7 +195,9 @@ onUnmounted(() => {
         }"
       ></div>
     </div>
-    <div class="text-display">{{ text }}</div>
+    <div class="text-display">
+      <span>{{ text }}</span>
+    </div>
     <!-- <div class="sub-text-display">
       <span class="completed">{{ completedSubText }}</span>
       <span class="remaining">{{ remainingText }}</span>
