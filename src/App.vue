@@ -1,5 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
+import Matter from 'matter-js'
 
 // タイピングデータ
 const text = ref('')
@@ -24,7 +25,7 @@ const topics = [
 const currentTopicIndex = ref(0) // 現在のお題のインデックス
 
 // キータイプ音の準備
-const keyTypeSound = new Audio('/sound/type.mp3')
+const keyTypeSound = new Audio('@assets/sound/type2.mp3')
 
 // TypingTextインスタンス
 let typingText = null
@@ -55,9 +56,11 @@ function press(event) {
       break
     case 'incomplete':
       playKeyTypeSound() // 入力中の音を再生
+      addFallingLetter(key)
       break
     case 'complete':
       playKeyTypeSound() // 完成時も音を再生
+      addFallingLetter(key)
       nextTopic() // 次のお題に切り替え
       break
     default:
@@ -83,9 +86,92 @@ function updateTextData() {
   remainingRoman.value = typingText.remainingRoman
 }
 
-// イベントリスナーの登録と解除
+// Matter.jsのエンジンとワールド
+let engine, render, world
+
+// Matter.jsの初期化
+function initializePhysics() {
+  // エンジンの生成
+  engine = Matter.Engine.create()
+  world = engine.world
+
+  // レンダリングの設定
+  render = Matter.Render.create({
+    element: document.getElementById('app'),
+    engine: engine,
+    options: {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      wireframes: false,
+      background: '#f0f0f0',
+    },
+  })
+
+  // マウス、マウス制約を生成
+  const mouse = Matter.Mouse.create(document.getElementById('app'))
+  const mouseConstraint = Matter.MouseConstraint.create(engine, {
+    mouse: mouse,
+    constraint: {
+      render: {
+        visible: false,
+      },
+    },
+  })
+  Matter.Composite.add(world, mouseConstraint)
+  render.mouse = mouse
+
+  // 壁（左）を追加
+  const leftWall = Matter.Bodies.rectangle(0, window.innerHeight / 2, 20, window.innerHeight, {
+    isStatic: true,
+  })
+  Matter.World.add(world, leftWall)
+
+  // 壁（右）を追加
+  const rightWall = Matter.Bodies.rectangle(
+    window.innerWidth,
+    window.innerHeight / 2,
+    20,
+    window.innerHeight,
+    {
+      isStatic: true,
+    },
+  )
+  Matter.World.add(world, rightWall)
+
+  // 床を追加
+  const ground = Matter.Bodies.rectangle(
+    window.innerWidth / 2,
+    window.innerHeight,
+    window.innerWidth,
+    20,
+    {
+      isStatic: true,
+    },
+  )
+  Matter.World.add(world, ground)
+
+  // レンダリングを実行
+  Matter.Render.run(render)
+  // エンジンを実行
+  Matter.Runner.run(Matter.Runner.create(), engine)
+}
+
+// 文字を物理演算で落下させる
+function addFallingLetter(letter) {
+  const letterBody = Matter.Bodies.circle(Math.random() * window.innerWidth, 0, 20, {
+    restitution: 1, // 弾む効果
+    render: {
+      fillStyle: '#333',
+    },
+  })
+
+  letterBody.label = letter // 文字をラベルとして保持
+  Matter.Composite.add(world, letterBody)
+}
+
 onMounted(() => {
   initializeTypingText()
+  initializePhysics()
   window.addEventListener('keydown', press)
 })
 
@@ -118,6 +204,7 @@ onUnmounted(() => {
 
 <style scoped>
 .typing-container {
+  position: absolute;
   text-align: center;
   height: fit-content;
   min-width: 500px;
