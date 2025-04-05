@@ -8,6 +8,7 @@ const completedSubText = ref('')
 const remainingText = ref('')
 const completedRoman = ref('')
 const remainingRoman = ref('')
+const count = ref(0) // 削除されたボールの総数
 
 // お題リスト
 const topics = [
@@ -24,8 +25,12 @@ const topics = [
 ]
 const currentTopicIndex = ref(0) // 現在のお題のインデックス
 
-// キータイプ音の準備
-const keyTypeSound = new Audio('/assets/sound/type2.mp3')
+// 入力成功時の音（キータイプ音）
+const okSound = new Audio('/assets/sound/ok.mp3')
+// 入力失敗時の音
+const ngSound = new Audio('/assets/sound/ng.mp3')
+// ボール削除時の音
+const removeSound = new Audio('/assets/sound/remove.mp3')
 
 // TypingTextインスタンス
 let typingText = null
@@ -52,14 +57,14 @@ function press(event) {
 
   switch (state) {
     case 'unmatch':
-      console.log('miss') // ミスした場合の処理
+      playSound(ngSound)
       break
     case 'incomplete':
-      playKeyTypeSound() // 入力中の音を再生
+      playSound(okSound)
       addFallingLetter(key)
       break
     case 'complete':
-      playKeyTypeSound() // 完成時も音を再生
+      playSound(okSound)
       addFallingLetter(key)
       nextTopic() // 次のお題に切り替え
       break
@@ -71,10 +76,10 @@ function press(event) {
   updateTextData()
 }
 
-// キータイプ音を再生
-function playKeyTypeSound() {
-  keyTypeSound.currentTime = 0
-  keyTypeSound.play()
+// 音を再生
+function playSound(sound) {
+  sound.currentTime = 0
+  sound.play()
 }
 
 // テキストデータを更新
@@ -88,6 +93,8 @@ function updateTextData() {
 
 // Matter.jsのエンジンとワールド
 let engine, render, world
+let hole = null // 穴のオブジェクト
+let constraint = null // 鎖の制約
 
 // Matter.jsの初期化
 function initializePhysics() {
@@ -123,6 +130,9 @@ function initializePhysics() {
   // 壁（左）を追加
   const leftWall = Matter.Bodies.rectangle(0, window.innerHeight / 2, 20, window.innerHeight, {
     isStatic: true,
+    collisionFilter: {
+      group: -1, // 特定のグループに属する
+    },
   })
   Matter.World.add(world, leftWall)
 
@@ -134,6 +144,9 @@ function initializePhysics() {
     window.innerHeight,
     {
       isStatic: true,
+      collisionFilter: {
+        group: -1, // 特定のグループに属する
+      },
     },
   )
   Matter.World.add(world, rightWall)
@@ -146,9 +159,15 @@ function initializePhysics() {
     20,
     {
       isStatic: true,
+      collisionFilter: {
+        group: -1, // 特定のグループに属する
+      },
     },
   )
   Matter.World.add(world, ground)
+
+  // 穴を作成
+  createHole()
 
   // レンダリングを実行
   Matter.Render.run(render)
@@ -161,6 +180,9 @@ function addFallingLetter(letter) {
   letter = letter === '?' ? 'hatena' : letter
   const imgPath = `/assets/images/${letter}.png`
   const letterBody = Matter.Bodies.circle(Math.random() * window.innerWidth, 0, 20, {
+    collisionFilter: {
+      group: 1, // ボールは別のグループに属する
+    },
     render: {
       sprite: {
         texture: imgPath,
@@ -174,14 +196,87 @@ function addFallingLetter(letter) {
   Matter.Composite.add(world, letterBody)
 }
 
+// 穴を作成する
+function createHole() {
+  if (hole) {
+    Matter.World.remove(world, hole) // 既存の穴を削除
+  }
+
+  // 穴の初期位置
+  const holeX = window.innerWidth - 100
+  const holeY = 100
+
+  // 穴の物理オブジェクト
+  hole = Matter.Bodies.circle(holeX, holeY, 30, {
+    isStatic: false,
+    collisionFilter: {
+      group: 0, // 穴は別のグループに属する
+    },
+    render: {
+      fillStyle: '#000',
+    },
+  })
+  Matter.World.add(world, hole)
+
+  // 鎖（制約）を作成
+  const anchor = { x: holeX, y: holeY } // 鎖の固定点
+  constraint = Matter.Constraint.create({
+    pointA: anchor,
+    bodyB: hole,
+    stiffness: 0.01, // 鎖の柔らかさ
+    length: 0,
+    render: {
+      visible: true,
+      lineWidth: 2,
+      strokeStyle: '#555',
+    },
+  })
+  Matter.World.add(world, constraint)
+
+  // ボールが穴に落ちたかを監視
+  Matter.Events.on(engine, 'collisionStart', (event) => {
+    const pairs = event.pairs
+    pairs.forEach((pair) => {
+      if (pair.bodyA === hole || pair.bodyB === hole) {
+        const ball = pair.bodyA === hole ? pair.bodyB : pair.bodyA
+        if (ball.collisionFilter.group !== -1) {
+          // 壁や床以外のオブジェクトを削除
+          Matter.World.remove(world, ball)
+          playSound(removeSound)
+          count.value++ // 削除されたボールの総数を増加
+        }
+      }
+    })
+  })
+}
+
+// マウスで穴を動かす
+function enableMouseControl() {
+  const mouse = Matter.Mouse.create(render.canvas)
+  const mouseConstraint = Matter.MouseConstraint.create(engine, {
+    mouse: mouse,
+    constraint: {
+      stiffness: 0.2,
+      render: {
+        visible: false,
+      },
+    },
+  })
+  Matter.World.add(world, mouseConstraint)
+}
+
 onMounted(() => {
   initializeTypingText()
   initializePhysics()
+  enableMouseControl()
   window.addEventListener('keydown', press)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', press)
+  Matter.Render.stop(render)
+  Matter.World.clear(world)
+  Matter.Engine.clear(engine)
 })
 </script>
 
@@ -199,13 +294,14 @@ onUnmounted(() => {
       <span>{{ text }}</span>
     </div>
     <!-- <div class="sub-text-display">
-      <span class="completed">{{ completedSubText }}</span>
-      <span class="remaining">{{ remainingText }}</span>
-    </div> -->
+          <span class="completed">{{ completedSubText }}</span>
+          <span class="remaining">{{ remainingText }}</span>
+        </div> -->
     <div class="roman-display">
       <span class="completed-roman">{{ completedRoman }}</span>
       <span class="remaining-roman">{{ remainingRoman }}</span>
     </div>
+    <div class="count-display">{{ count }}</div>
   </div>
 </template>
 
@@ -252,6 +348,12 @@ onUnmounted(() => {
   font-size: 1.2rem;
   color: #666;
   margin-bottom: 20px;
+}
+
+.count-display {
+  margin-top: 10px;
+  font-size: 1.2rem;
+  color: #333;
 }
 
 .completed {
